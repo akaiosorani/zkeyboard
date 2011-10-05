@@ -18,14 +18,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <sysdeps.h>
+//#include "sysdeps.h"
 
 #define  TRACE_TAG  TRACE_TRANSPORT
-#include "adb.h"
+//#include "adb.h"
+#include "zadb.h"
 
-#if ADB_HOST
 #include "usb_vendors.h"
-#endif
 
 #ifdef HAVE_BIG_ENDIAN
 #define H4(x)	(((x) & 0xFF000000) >> 24) | (((x) & 0x00FF0000) >> 8) | (((x) & 0x0000FF00) << 8) | (((x) & 0x000000FF) << 24)
@@ -116,19 +115,10 @@ void init_usb_transport(atransport *t, usb_handle *h, int state)
     t->kick = remote_kick;
     t->read_from_remote = remote_read;
     t->write_to_remote = remote_write;
-    t->sync_token = 1;
     t->connection_state = state;
-    t->type = kTransportUsb;
     t->usb = h;
-
-#if ADB_HOST
-    HOST = 1;
-#else
-    HOST = 0;
-#endif
 }
 
-#if ADB_HOST
 int is_adb_interface(int vid, int pid, int usb_class, int usb_subclass, int usb_protocol)
 {
     unsigned i;
@@ -145,4 +135,4 @@ int is_adb_interface(int vid, int pid, int usb_class, int usb_subclass, int usb_
 
     return 0;
 }
-#endif
+
