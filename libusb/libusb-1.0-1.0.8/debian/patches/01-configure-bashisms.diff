@@ -1,0 +1,22 @@
+Fix bashisms
+
+--- a/configure	2010-05-25 07:37:16.000000000 +0000
++++ b/configure	2010-05-25 07:38:21.000000000 +0000
+@@ -10723,7 +10723,7 @@ $as_echo "Darwin/MacOS X" >&6; }
+ 	as_fn_error "unsupported operating system" "$LINENO" 5
+ esac
+ 
+- if test "x$backend" == "xlinux"; then
++ if test "x$backend" = "xlinux"; then
+   OS_LINUX_TRUE=
+   OS_LINUX_FALSE='#'
+ else
+@@ -10731,7 +10731,7 @@ else
+   OS_LINUX_FALSE=
+ fi
+ 
+- if test "x$backend" == "xdarwin"; then
++ if test "x$backend" = "xdarwin"; then
+   OS_DARWIN_TRUE=
+   OS_DARWIN_FALSE='#'
+ else

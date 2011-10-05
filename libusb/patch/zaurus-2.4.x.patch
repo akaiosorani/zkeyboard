@@ -1,0 +1,24 @@
+diff -ru libusb-1.0-1.0.8.orig//libusb/os/linux_usbfs.c libusb-1.0-1.0.8/libusb/os/linux_usbfs.c
+--- libusb-1.0-1.0.8.orig//libusb/os/linux_usbfs.c	2011-10-05 23:50:36.000000000 +0900
++++ libusb-1.0-1.0.8/libusb/os/linux_usbfs.c	2011-10-06 00:00:06.000000000 +0900
+@@ -203,6 +203,11 @@
+ 
+ 	/* Linux 2.6.28 adds CLOCK_MONOTONIC_RAW but we don't use it
+ 	 * because it's not available through timerfd */
++/*
++        Linux 2.4.x has no CLOCK_MONOTONIC ? 
++	Zaurus's header complain about it so we use CLOCK_REALTIME only
++*/
++/*
+ 	r = clock_gettime(CLOCK_MONOTONIC, &ts);
+ 	if (r == 0) {
+ 		return CLOCK_MONOTONIC;
+@@ -210,6 +215,8 @@
+ 		usbi_dbg("monotonic clock doesn't work, errno %d", errno);
+ 		return CLOCK_REALTIME;
+ 	}
++*/
++	return CLOCK_REALTIME;
+ }
+ 
+ /* bulk continuation URB flag available from Linux 2.6.32 */
