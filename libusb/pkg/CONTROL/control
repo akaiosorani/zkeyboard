@@ -1,0 +1,10 @@
+Package: libusb-1.0
+Priority: optional
+Section: library
+Version: 1.0.8-1
+Architecture: arm
+Maintainer: akaiosorani
+Description: libusb is a library for USB device access from Linux userspace.
+
+
+
