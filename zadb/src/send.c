@@ -1,3 +1,18 @@
+/*
+ * Copyright (C) 2007 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,7 +24,9 @@
 
 #include <errno.h>
 
-int id = 1;
+int seed = 0;
+int id = -1;
+int remote_id = -1;
 
 // adb.c
 void fatal(const char *fmt, ...)
@@ -96,6 +113,8 @@ void put_apacket(apacket *p)
 // adb.c
 void handle_packet(apacket *p, atransport *t)
 {
+    char buf[0x1000 + 8];
+
     D("handle_packet() %c%c%c%c\n", ((char*) (&(p->msg.command)))[0],
             ((char*) (&(p->msg.command)))[1],
             ((char*) (&(p->msg.command)))[2],
@@ -119,6 +138,7 @@ void handle_packet(apacket *p, atransport *t)
         break;
 
     case A_OPEN: /* OPEN(local-id, 0, "destination") */
+//  TODO not support -> drop packet
 /*
         if(t->connection_state != CS_OFFLINE) {
             char *name = (char*) p->data;
@@ -128,6 +148,15 @@ void handle_packet(apacket *p, atransport *t)
         break;
 
     case A_OKAY: /* READY(local-id, remote-id, "") */
+        if (id == -1 && p->msg.arg1 == seed) {
+            /* it's first OKAY reply */
+// TODO lock
+            id = seed;
+            remote_id = p->msg.arg0;
+            D("remote_id %d\n", remote_id);
+        } else if(id == p->msg.arg0 && remote_id == p->msg.arg1) {
+            // TODO check OKAY
+        }
 /*
         if(t->connection_state != CS_OFFLINE) {
         }
@@ -135,6 +164,11 @@ void handle_packet(apacket *p, atransport *t)
         break;
 
     case A_CLSE: /* CLOSE(local-id, remote-id, "") */
+        if (id == p->msg.arg0 && remote_id == p->msg.arg1) {
+            // TODO lock
+            id = -1;
+            remote_id = -1;
+        }
 /*
         if(t->connection_state != CS_OFFLINE) {
        }
@@ -142,9 +176,18 @@ void handle_packet(apacket *p, atransport *t)
         break;
 
     case A_WRTE:
-/*
-        if(t->connection_state != CS_OFFLINE) {
+        /*if(t->connection_state != CS_OFFLINE) */{
+            if(p->msg.arg0 == remote_id) {
+                if(p->msg.data_length > 0) {
+                    strncpy(buf, p->data, p->msg.data_length);
+                    buf[p->msg.data_length] = 0;
+                    fprintf(stdout, buf);
+                    fflush(stdout);
+                }
+                send_ready(t);
+            }
         }
+/*
 */
         break;
 
@@ -176,11 +219,24 @@ void send_open(atransport *t, const char* msg)
 {
     apacket *p = get_apacket();
     p->msg.command = A_OPEN;
-    p->msg.arg0 = id;
+    p->msg.arg0 = ++seed;
     p->msg.arg1 = 0;
     snprintf((char*)p->data, sizeof p->data, msg);
 //    snprintf((char*)p->data, sizeof p->data, "shell:");
     p->msg.data_length = strlen(p->data);
+
+    send_packet(p, t);
+    id = -1;
+    remote_id = -1;
+}
+
+void send_ready(atransport *t)
+{
+    apacket *p = get_apacket();
+    p->msg.command = A_OKAY;
+    p->msg.arg0 = id;
+    p->msg.arg1 = remote_id;
+    p->msg.data_length = 0;
 
     send_packet(p, t);
 }
@@ -188,5 +244,21 @@ void send_open(atransport *t, const char* msg)
 void send_close()
 {
 
+}
+
+void send_write(atransport *t, const char* msg)
+{
+    if (remote_id==-1)
+    {
+        return;
+    }
+    apacket *p = get_apacket();
+    p->msg.command = A_WRTE;
+    p->msg.arg0 = 0;
+    p->msg.arg1 = remote_id;
+    snprintf((char*)p->data, sizeof p->data, msg);
+    p->msg.data_length = strlen(p->data);
+
+    send_packet(p, t);
 }
 
