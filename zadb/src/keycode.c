@@ -51,9 +51,9 @@ struct keycode keycodes[] = {
     { "KEY_RIGHT", 22 },
     { "," , 55 }, 
     { ".", 56 },
-    { "^I", 61 },
+    { "^I", 61 },   // TAB
     { " ", 62 },
-    { "^J", 66 },
+    { "^J", 66 },   // ENTER
     { "KEY_BACKSPACE", 67 },
     { "`", 68 },
     { "-", 69 },
@@ -65,7 +65,7 @@ struct keycode keycodes[] = {
     { "/", 76 },
     { "@", 77 },
     { "+", 81 },
-    { "^[",111 },
+    { "^[",111 },   // ESCAPE
     { "KEY_DC", 112 },
     //CAPS_LOCK = 115
     { "KEY_F(1)", 131 },
@@ -80,6 +80,24 @@ struct keycode keycodes[] = {
     { "KEY_F(10)", 140 },
     { "KEY_F(11)", 141 },
     { "KEY_F(12)", 142 },
+    { "~", 0 }, 
+    { "^", 0, },
+    { "!", 0, },
+    { "$", 0, },
+    { "%", 0, },
+    { "&", 0, },
+    { "(", 0, },
+    { ")", 0, },
+    { ":", 0, },
+    { "{", 0, },
+    { "}", 0, },
+    { "\"", 0, },
+    { "'", 0, },
+    { "|", 0, },
+    { "_", 0, },
+    { "<", 0, },
+    { ">", 0, },
+    { "?", 0, },
 }; 
 
 
@@ -95,15 +113,4 @@ int find_keycode(const char* input)
     return -1;
 }
 
-int find_keycode_ch(const char ch)
-{
-    int i;
-    for(i=0;i<sizeof(keycodes)/sizeof(keycode);i++)
-    {
-        if (*keycodes[i].c == ch) {
-            return keycodes[i].v;
-        }
-    }
-    return -1;
-}
 
