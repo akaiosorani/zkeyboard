@@ -14,9 +14,6 @@
 
 #define MESSAGE_DEVICE_CONNECTED "device connected\n"
 #define MESSAGE_DEVICE_DISCONNECTED "device disconnected\n"
-#define COMMAND_TEXT "shell:input text \0"
-#define COMMAND_KEYCODE "shell:input keyevent \0"
-#define COMMAND_KEYCODE2 "input keyevent \0"
 
 int device_found;
 
@@ -79,51 +76,6 @@ void  adb_trace_init(void)
     }
 }
 
-void send_text(const char* text)
-{
-    char p[350];
-    strcpy(p, COMMAND_TEXT);
-    char *p1 = p + strlen(p);
-    int count = 100;
-    char* s = text;
-    while(count-- && *s) {
-        if(*s == ' ') {
-            *(p1++) = '%';
-            *(p1++) = '%';
-            *(p1++) = 's';
-            s++;
-        } else if (isalnum(*s)) {
-            *(p1++) = *s++;
-        } else {
-            s++;
-        }
-    }
-    *(p1++) = ' ';
-    *p1 = '\0';
-    D(p);
-    send_open(transport, p);
-}
-
-void send_keycode(int keycode)
-{
-    char p[100];
-    strcpy(p, COMMAND_KEYCODE);
-    char *p1 = p + strlen(p);
-    snprintf(p1, sizeof(p) - (p1 - p), " %d ", keycode);
-    D(p);
-    send_open(transport, p);
-}
-
-void send_keycode2(int keycode)
-{
-    char p[100];
-    strcpy(p, COMMAND_KEYCODE2);
-    char *p1 = p + strlen(p);
-    snprintf(p1, sizeof(p) - (p1 - p), " %d\n ", keycode);
-    D(p);
-    send_write(transport, p);
-}
-
 void shell()
 {
     char buf[4096];
@@ -183,11 +135,6 @@ int wait_ok_or_close(FILE *file)
     return 0;
 }
 
-void do_write(apacket* packet) 
-{
-
-}
-
 void parse_command()
 {
     char buf[4096];
@@ -211,24 +158,6 @@ void parse_command()
             continue;
 
         switch(buf[0]) {
-            case 't':
-                send_text(&buf[2]);
-                usleep(50000);
-                break;
-            case 'k':
-                code = atoi(&buf[2]);
-                if (code <= 0 || code > 255)
-                    continue;
-                send_keycode(code);
-                usleep(50000);
-                break;
-            case 'v':
-                code = atoi(&buf[2]);
-                if (code <= 0 || code > 255)
-                    continue;
-                send_keycode2(code);
-                usleep(50000);
-                break;
             case 's':
                 send_open(transport, "shell: ");
                 while(1) {
@@ -237,12 +166,12 @@ void parse_command()
                         break;
                     }
                 }
-        while(1) {
-            usleep(50000);
-            if(wait_ok_or_close(stdout)) {
-                break;
-            }
-        }
+                while(1) {
+                    usleep(50000);
+                    if(wait_ok_or_close(stdout)) {
+                        break;
+                    }
+                }
                 shell();
                 break;
             case 'q':
