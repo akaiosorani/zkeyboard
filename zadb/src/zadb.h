@@ -105,6 +105,9 @@ void put_apacket(apacket *p);
 int check_header(apacket *p);
 int check_data(apacket *p);
 
+void store_received_packet(apacket* packet);
+apacket* shift_received_packet();
+
 #define  ADB_TRACE    1
 
 /* IMPORTANT: if you change the following list, don't
@@ -113,14 +116,10 @@ int check_data(apacket *p);
  */
 typedef enum {
     TRACE_ADB = 0,
-    TRACE_SOCKETS,
     TRACE_PACKETS,
     TRACE_TRANSPORT,
-    TRACE_RWX,
     TRACE_USB,
-    TRACE_SYNC,
-    TRACE_SYSDEPS,
-    TRACE_JDWP,
+    TRACE_KEY, 
 } AdbTrace;
 
 #if ADB_TRACE

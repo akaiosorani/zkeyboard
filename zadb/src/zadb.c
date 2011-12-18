@@ -16,6 +16,7 @@
 #define MESSAGE_DEVICE_DISCONNECTED "device disconnected\n"
 #define COMMAND_TEXT "shell:input text \0"
 #define COMMAND_KEYCODE "shell:input keyevent \0"
+#define COMMAND_KEYCODE2 "input keyevent \0"
 
 int device_found;
 
@@ -37,14 +38,10 @@ void  adb_trace_init(void)
         { "1", 0 },
         { "all", 0 },
         { "adb", TRACE_ADB },
-        { "sockets", TRACE_SOCKETS },
         { "packets", TRACE_PACKETS },
-        { "rwx", TRACE_RWX },
         { "usb", TRACE_USB },
-        { "sync", TRACE_SYNC },
-        { "sysdeps", TRACE_SYSDEPS },
         { "transport", TRACE_TRANSPORT },
-        { "jdwp", TRACE_JDWP },
+        { "key", TRACE_KEY },
         { NULL, 0 }
     };
 
@@ -117,6 +114,80 @@ void send_keycode(int keycode)
     send_open(transport, p);
 }
 
+void send_keycode2(int keycode)
+{
+    char p[100];
+    strcpy(p, COMMAND_KEYCODE2);
+    char *p1 = p + strlen(p);
+    snprintf(p1, sizeof(p) - (p1 - p), " %d\n ", keycode);
+    D(p);
+    send_write(transport, p);
+}
+
+void shell()
+{
+    char buf[4096];
+    for(;;) {
+        bzero(buf, sizeof(buf));
+        if (fgets(buf, sizeof(buf), stdin) == NULL)
+            continue;
+
+        send_write(transport, buf);
+
+        /* echo back */
+        while(1) {
+            usleep(50000);
+            if(wait_ok_or_close(NULL)) {
+                break;
+            }
+        }
+        /* response */
+        while(1) {
+            usleep(50000);
+            if(wait_ok_or_close(stdout)) {
+                break;
+            }
+        }
+    }
+}
+
+int wait_ok_or_close(FILE *file)
+{
+    char buf[0x1000 + 8];
+
+    apacket *p;
+    while(1) {
+        p = shift_received_packet();
+        if (!p) {
+            return 0;
+        }
+        switch(p->msg.command){
+            case A_OKAY:
+                // OKAYなら表示して続く
+                return 1;
+            case A_CLSE:
+                // CLOSEなら終了
+                return 1;
+            case A_WRTE:
+                if (file) {
+                    strncpy(buf, p->data, p->msg.data_length);
+                    buf[p->msg.data_length] = 0;
+                    fprintf(file, buf);
+                    fflush(file);
+                }
+                return 1;
+            default:
+                break;
+        }
+    }
+    return 0;
+}
+
+void do_write(apacket* packet) 
+{
+
+}
+
 void parse_command()
 {
     char buf[4096];
@@ -151,6 +222,29 @@ void parse_command()
                 send_keycode(code);
                 usleep(50000);
                 break;
+            case 'v':
+                code = atoi(&buf[2]);
+                if (code <= 0 || code > 255)
+                    continue;
+                send_keycode2(code);
+                usleep(50000);
+                break;
+            case 's':
+                send_open(transport, "shell: ");
+                while(1) {
+                    usleep(150000);
+                    if (wait_ok_or_close(NULL)) {
+                        break;
+                    }
+                }
+        while(1) {
+            usleep(50000);
+            if(wait_ok_or_close(stdout)) {
+                break;
+            }
+        }
+                shell();
+                break;
             case 'q':
                 return;
                 break;
@@ -179,6 +273,7 @@ static void *device_watch_thread(void *_t)
             message(MESSAGE_DEVICE_DISCONNECTED);
         }
         sleep(1);
+
         D("device %d %d %x \n", device_found, current_state, transport);
     }
 

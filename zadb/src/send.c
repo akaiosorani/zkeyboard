@@ -28,6 +28,11 @@ int seed = 0;
 int id = -1;
 int remote_id = -1;
 
+apacket *received = NULL;
+apacket *last = NULL;
+
+ADB_MUTEX_DEFINE(packet_lock);
+
 // adb.c
 void fatal(const char *fmt, ...)
 {
@@ -150,12 +155,20 @@ void handle_packet(apacket *p, atransport *t)
     case A_OKAY: /* READY(local-id, remote-id, "") */
         if (id == -1 && p->msg.arg1 == seed) {
             /* it's first OKAY reply */
-// TODO lock
+            adb_mutex_lock(&packet_lock);
             id = seed;
             remote_id = p->msg.arg0;
             D("remote_id %d\n", remote_id);
+            adb_mutex_unlock(&packet_lock);
+
+            clear_received_packet();
+            store_received_packet(p);
+            p = NULL;
         } else if(id == p->msg.arg0 && remote_id == p->msg.arg1) {
             // TODO check OKAY
+
+            store_received_packet(p);
+            p = NULL;
         }
 /*
         if(t->connection_state != CS_OFFLINE) {
@@ -164,10 +177,11 @@ void handle_packet(apacket *p, atransport *t)
         break;
 
     case A_CLSE: /* CLOSE(local-id, remote-id, "") */
+        // TODO handle closing shell
         if (id == p->msg.arg0 && remote_id == p->msg.arg1) {
-            // TODO lock
-            id = -1;
-            remote_id = -1;
+            adb_mutex_lock(&packet_lock);
+            store_received_packet(p);
+            p = NULL;
         }
 /*
         if(t->connection_state != CS_OFFLINE) {
@@ -179,10 +193,14 @@ void handle_packet(apacket *p, atransport *t)
         /*if(t->connection_state != CS_OFFLINE) */{
             if(p->msg.arg0 == remote_id) {
                 if(p->msg.data_length > 0) {
+/*
                     strncpy(buf, p->data, p->msg.data_length);
                     buf[p->msg.data_length] = 0;
                     fprintf(stdout, buf);
                     fflush(stdout);
+*/
+                    store_received_packet(p);
+                    p = NULL;
                 }
                 send_ready(t);
             }
@@ -194,8 +212,9 @@ void handle_packet(apacket *p, atransport *t)
     default:
         printf("handle_packet: what is %08x?!\n", p->msg.command);
     }
-
-    put_apacket(p);
+    if (p) {
+        put_apacket(p);
+    }
 }
 
 
@@ -261,4 +280,48 @@ void send_write(atransport *t, const char* msg)
 
     send_packet(p, t);
 }
+
+void  store_received_packet(apacket *p)
+{
+    adb_mutex_lock(&packet_lock);
+    if (received == NULL) {
+        received = p;
+        last = p;
+    } else {
+        last->next = p;
+        last = p;
+    }
+    last->next = NULL;
+    adb_mutex_unlock(&packet_lock);
+}
+
+apacket* shift_received_packet()
+{
+    apacket* p = NULL;
+    adb_mutex_lock(&packet_lock);
+    if (received == NULL) {
+        p = NULL;
+    } else {
+        p = received;
+        received = p->next;
+        if (!received) {
+            last = NULL;
+        }
+    }
+    adb_mutex_unlock(&packet_lock);
+    return p;
+}
+
+void clear_received_packet()
+{
+    adb_mutex_lock(&packet_lock);
+    while(received != NULL) {
+        apacket* packet = received;
+        received = received->next;
+        put_apacket(packet);
+    }
+    received = last = NULL;
+    adb_mutex_unlock(&packet_lock);
+}
+
 
