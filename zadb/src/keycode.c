@@ -55,16 +55,16 @@ static keydata* check_1byte_char(char *buf)
     int value;
     switch(buf[0])
     {
-        case 0x09:
+        case 0x09: /* TAB KEY*/
             value = 61;
-            break;
+            break; /* ENTER KEY*/
         case 0x0a:
             value = 66;
             break;
-        case 0x1b:
+        case 0x1b: /* ESC KEY*/
             value = 111;
             break;
-        case 0x7f:
+        case 0x7f: /* BS KEY*/
             value = 67;
             break;
         default:
@@ -82,16 +82,16 @@ static keydata* check_3bytes_char(char *buf)
     int value;
     switch(buf[2])
     {
-        case 0x41:
+        case 0x41: /* UP KEY*/
             value = 19;
             break;
-        case 0x42:
+        case 0x42: /* DOWN KEY*/
             value = 20;
             break;
-        case 0x43:
+        case 0x43: /* RIGHT KEY*/
             value = 22;
             break;
-        case 0x44:
+        case 0x44: /* LEFT KEY*/
             value = 21;
             break;
         default:
@@ -105,7 +105,7 @@ static keydata* check_4bytes_char(char *buf)
     if(buf[0] == 0x1b && buf[1] == 0x5b &&
        buf[2] == 0x33 && buf[3] == 0x7e )
     {
-        // DEL 
+        /* DEL KEY */
         return set_key_value(112);
     }
     return NULL;
