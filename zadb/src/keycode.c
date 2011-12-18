@@ -1,116 +1,225 @@
+#include <stdio.h>
+#include <ctype.h>
 
+#include "sysdeps.h"
+#include "zadb.h"
 
-struct keycode {
-    const char *c;
-    int v;
-} keycode;
+ADB_MUTEX_DEFINE(keyevent_lock);
 
-struct keycode keycodes[] = {
+typedef struct keydata keydata;
+struct keydata {
+    int type;
+    int count;
+    int value;
+    char text[100];
+    keydata* next;
+};
 
-    { "0", 7 }, 
-    { "1", 8 }, 
-    { "2", 9 }, 
-    { "3", 10 }, 
-    { "4", 11 }, 
-    { "5", 12 }, 
-    { "6", 13 }, 
-    { "7", 14 }, 
-    { "8", 15 }, 
-    { "9", 16 }, 
-    { "a", 29 }, 
-    { "b", 30 }, 
-    { "c", 31 }, 
-    { "d", 32 }, 
-    { "e", 33 }, 
-    { "f", 34 }, 
-    { "g", 35 }, 
-    { "h", 36 }, 
-    { "i", 37 }, 
-    { "j", 38 }, 
-    { "k", 39 }, 
-    { "l", 40 }, 
-    { "m", 41 }, 
-    { "n", 42 }, 
-    { "o", 43 }, 
-    { "p", 44 }, 
-    { "q", 45 }, 
-    { "r", 46 }, 
-    { "s", 47 }, 
-    { "t", 48 }, 
-    { "u", 49 }, 
-    { "v", 50 }, 
-    { "w", 51 }, 
-    { "x", 52 }, 
-    { "y", 53 }, 
-    { "z", 54 }, 
-    { "*", 17 },
-    { "#", 18 },
-    { "KEY_UP", 19},  
-    { "KEY_DOWN", 20 }, 
-    { "KEY_LEFT", 21 },
-    { "KEY_RIGHT", 22 },
-    { "," , 55 }, 
-    { ".", 56 },
-    { "^I", 61 },   // TAB
-    { " ", 62 },
-    { "^J", 66 },   // ENTER
-    { "KEY_BACKSPACE", 67 },
-    { "`", 68 },
-    { "-", 69 },
-    { "=", 70 },
-    { "[", 71 },
-    { "]", 72 },
-    { "\\", 73 },
-    { ";", 74 },
-    { "/", 76 },
-    { "@", 77 },
-    { "+", 81 },
-    { "^[",111 },   // ESCAPE
-    { "KEY_DC", 112 },
-    //CAPS_LOCK = 115
-    { "KEY_F(1)", 131 },
-    { "KEY_F(2)", 132 },
-    { "KEY_F(3)", 133 },
-    { "KEY_F(4)", 134 },
-    { "KEY_F(5)", 135 },
-    { "KEY_F(6)", 136 },
-    { "KEY_F(7)", 137 },
-    { "KEY_F(8)", 138 },
-    { "KEY_F(9)", 139 },
-    { "KEY_F(10)", 140 },
-    { "KEY_F(11)", 141 },
-    { "KEY_F(12)", 142 },
-    { "~", 0 }, 
-    { "^", 0, },
-    { "!", 0, },
-    { "$", 0, },
-    { "%", 0, },
-    { "&", 0, },
-    { "(", 0, },
-    { ")", 0, },
-    { ":", 0, },
-    { "{", 0, },
-    { "}", 0, },
-    { "\"", 0, },
-    { "'", 0, },
-    { "|", 0, },
-    { "_", 0, },
-    { "<", 0, },
-    { ">", 0, },
-    { "?", 0, },
-}; 
+static int KEY_EVENT = 0;
+static int KEY_TEXT = 1;
 
+static keydata* keylist = NULL;
+static keydata* last = NULL;
 
-int find_keycode(const char* input)
+static void add(keydata *k)
 {
-    int i;
-    for(i=0;i<sizeof(keycodes)/sizeof(keycode);i++)
+    if (!keylist) 
     {
-        if (!strcmp(keycodes[i].c, input)) {
-            return keycodes[i].v;
+        keylist = k;
+        last = k;
+    } else {
+        last->next = k;
+        last = k;
+    }
+}
+
+static keydata* get()
+{
+    keydata* k = malloc(sizeof(keydata));
+    bzero(k, sizeof(keydata));
+    add(k);
+    return k;
+}
+
+static keydata* set_key_value(int value)
+{
+    keydata* k = get();
+    k->type = KEY_EVENT;
+    k->value = value;
+    k->count++;
+    return k;
+}
+
+static keydata* check_1byte_char(char *buf)
+{
+    int value;
+    switch(buf[0])
+    {
+        case 0x09:
+            value = 61;
+            break;
+        case 0x0a:
+            value = 66;
+            break;
+        case 0x1b:
+            value = 111;
+            break;
+        case 0x7f:
+            value = 67;
+            break;
+        default:
+            return NULL;
+    }
+    return set_key_value(value);
+}
+
+static keydata* check_3bytes_char(char *buf)
+{
+    if (buf[0] != 0x1b || buf[1] != 0x5b)
+    {
+        return NULL;
+    }
+    int value;
+    switch(buf[2])
+    {
+        case 0x41:
+            value = 19;
+            break;
+        case 0x42:
+            value = 20;
+            break;
+        case 0x43:
+            value = 22;
+            break;
+        case 0x44:
+            value = 21;
+            break;
+        default:
+            return NULL;
+    }
+    return set_key_value(value);
+}
+
+static keydata* check_4bytes_char(char *buf)
+{
+    if(buf[0] == 0x1b && buf[1] == 0x5b &&
+       buf[2] == 0x33 && buf[3] == 0x7e )
+    {
+        // DEL 
+        return set_key_value(112);
+    }
+    return NULL;
+}
+
+void add_keylist(int length, char* buf)
+{
+    keydata *k = NULL;
+    /* printable char */
+    adb_mutex_lock(&keyevent_lock);
+    if (length == 1 && isprint(buf[0])) {
+        if (last && last->type == KEY_TEXT && last->count < sizeof(last->text) && last->text[last->count-1] != '%') 
+        {
+            k = last;
+        }
+        if (!k)
+        {
+            k = get();
+        }
+        k->type = KEY_TEXT;
+        k->text[k->count] = buf[0];
+        k->count++;
+    } else {
+        switch(length)
+        {
+            case 1: /* enter,tab,bs,esc */
+                k = check_1byte_char(buf);
+                break;
+            case 3: /* up,down,right,left */
+                k = check_3bytes_char(buf);
+                break;
+            case 4: /* del */
+                k = check_4bytes_char(buf);
+                break;
+            default:
+                return;
         }
     }
-    return -1;
+    adb_mutex_unlock(&keyevent_lock);
+}
+
+static void set_keyevent(keydata* k)
+{
+    char buf[40];
+    sprintf(buf, "input keyevent %d \0", k->value);
+
+    /* send packet */
+    send_write(transport, buf);
+    fprintf(stderr, "%s\n", buf);
+}
+
+static void set_text(keydata* k)
+{
+    int i;
+    char* p;
+    char buf[240];
+    sprintf(buf, "input text \"");
+    p = &buf[12];
+    for(i=0;i<k->count;i++)
+    {
+        if(k->text[i] == '"')
+        {
+            *(p++) = '\\';
+        }
+        *(p++) = k->text[i];
+    }
+    *p = '"';
+    *(p+1) = ' '; 
+    *(p+2) = '\0'; 
+
+    /* send packet */
+    send_write(transport, buf);
+    fprintf(stderr, "%s\n", buf);
+}
+
+void send_command()
+{
+    adb_mutex_lock(&keyevent_lock);
+    keydata* k = keylist;
+    keylist = keylist->next;
+    if(!keylist)
+    {
+        last = NULL;
+    }
+    adb_mutex_unlock(&keyevent_lock);
+
+    if(!k) 
+    {
+        return;
+    }
+    if (k->type == KEY_EVENT)
+    {
+        set_keyevent(k);
+    } else {
+        set_text(k);
+    }
+}
+
+void dump_keylist()
+{
+    adb_mutex_lock(&keyevent_lock);
+    keydata* k = keylist;
+    if(!k) return;
+
+    while(k) {
+        if (k->type == KEY_EVENT)
+        {
+            set_keyevent(k);
+        } else {
+            set_text(k);
+        }
+        k = k->next;
+    }
+    adb_mutex_unlock(&keyevent_lock);
 }
 
 
