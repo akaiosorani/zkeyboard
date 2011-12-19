@@ -27,22 +27,6 @@
 #define  TRACE_TAG  TRACE_ADB
 #include "zadb.h"
 
-/*
-dummy
-*/
-
-int adb_connect(char* buf) { return 0; }
-int adb_read(int  fd, void* buf, int len) { return 0; }
-int adb_close(int fd) { return 0;}
-int adb_write(int  fd, const void*  buf, int  len) { return 0;}
-const char *adb_error(void) {return NULL;}
-
-enum {
-    IGNORE_DATA,
-    WIPE_DATA,
-    FLASH_DATA
-};
-
 void version(FILE * out) {
     fprintf(out, "Android Debug Bridge for Zaurus version %d.%d.%d\n",
          ADB_VERSION_MAJOR, ADB_VERSION_MINOR, ADB_SERVER_VERSION);
@@ -97,14 +81,14 @@ static void stdin_raw_restore(int fd)
 }
 #endif
 
-static void read_and_dump(int fd)
+static void read_and_dump()
 {
     char buf[4096];
     int len;
 
     FILE * file = stdout;
     apacket *p;
-    while(fd >= 0) {
+    for(;;) {
         usleep(50000);
         p = shift_received_packet();
         if (!p) {
@@ -116,7 +100,7 @@ static void read_and_dump(int fd)
                 break;
             case A_CLSE:
                 // CLOSEなら終了
-                break;
+                return;
             case A_WRTE:
                 if (file) {
                     strncpy(buf, p->data, p->msg.data_length);
@@ -215,11 +199,13 @@ int interactive_shell(void)
     int fdi, fd;
     int *fds;
 
-    fd = adb_connect("shell:");
+    send_open(transport, "shell:");
+/*
     if(fd < 0) {
         fprintf(stderr,"error: %s\n", adb_error());
         return 1;
     }
+*/
     fdi = 0; //dup(0);
 
     fds = malloc(sizeof(int) * 2);
@@ -280,18 +266,17 @@ static int send_shellcommand(char* buf)
     int fd, ret;
 
     for(;;) {
-        fd = adb_connect(buf);
+        send_open(transport, buf);
+/*
         if(fd >= 0)
             break;
         fprintf(stderr,"- waiting for device -\n");
         adb_sleep_ms(1000);
+*/
     }
 
-    read_and_dump(fd);
-    ret = adb_close(fd);
-    if (ret)
-        perror("close");
-
+    read_and_dump();
+    send_close();
     return ret;
 }
 
@@ -330,11 +315,6 @@ static int logcat(int argc, char **argv)
 int adb_commandline(int argc, char **argv)
 {
     char buf[4096];
-    int no_daemon = 0;
-    int is_daemon = 0;
-    int is_server = 0;
-    int persist = 0;
-    int r;
     int quote;
 
     if(argc == 0) {
@@ -354,8 +334,14 @@ int adb_commandline(int argc, char **argv)
     }
 
     if(!strcmp(argv[0], "shell") || !strcmp(argv[0], "hell")) {
+        int found;
         int r;
         int fd;
+
+        found = init_and_wait_device(10, 1);
+        if (!found) {
+            return 1;
+        }
 
         char h = (argv[0][0] == 'h');
 
@@ -383,21 +369,22 @@ int adb_commandline(int argc, char **argv)
             quote = (**argv == 0 || strchr(*argv, ' '));
             if (quote)
                 strcat(buf, "\"");
-            strcat(buf, *argv++);
+                strcat(buf, *argv++);
             if (quote)
                 strcat(buf, "\"");
         }
 
         for(;;) {
-            fd = adb_connect(buf);
-            if(fd >= 0) {
-                read_and_dump(fd);
-                adb_close(fd);
-                r = 0;
-            } else {
-                fprintf(stderr,"error: %s\n", adb_error());
-                r = -1;
+            send_open(transport, buf);
+            read_and_dump(fd);
+            send_close();
+            r = 0;
+
+            if (h) {
+                printf("\x1b[0m");
+                fflush(stdout);
             }
+            return r;
         }
     }
 

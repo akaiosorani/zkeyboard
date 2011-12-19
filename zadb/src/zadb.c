@@ -1,3 +1,19 @@
+/*
+ * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (C) 2011 Akaiosorani 
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #include <stdio.h>
 #include <string.h>
@@ -76,113 +92,6 @@ void  adb_trace_init(void)
     }
 }
 
-void shell()
-{
-    char buf[4096];
-    for(;;) {
-        bzero(buf, sizeof(buf));
-        if (fgets(buf, sizeof(buf), stdin) == NULL)
-            continue;
-
-        send_write(transport, buf);
-
-        /* echo back */
-        while(1) {
-            usleep(50000);
-            if(wait_ok_or_close(NULL)) {
-                break;
-            }
-        }
-        /* response */
-        while(1) {
-            usleep(50000);
-            if(wait_ok_or_close(stdout)) {
-                break;
-            }
-        }
-    }
-}
-
-int wait_ok_or_close(FILE *file)
-{
-    char buf[0x1000 + 8];
-
-    apacket *p;
-    while(1) {
-        p = shift_received_packet();
-        if (!p) {
-            return 0;
-        }
-        switch(p->msg.command){
-            case A_OKAY:
-                // OKAYなら表示して続く
-                return 1;
-            case A_CLSE:
-                // CLOSEなら終了
-                return 1;
-            case A_WRTE:
-                if (file) {
-                    strncpy(buf, p->data, p->msg.data_length);
-                    buf[p->msg.data_length] = 0;
-                    fprintf(file, buf);
-                    fflush(file);
-                }
-                return 1;
-            default:
-                break;
-        }
-    }
-    return 0;
-}
-
-void parse_command()
-{
-    char buf[4096];
-    int code;
-
-    for(;;)
-    {
-        if (fgets(buf, sizeof(buf), stdin) == NULL)
-            continue;
-
-        if (strchr(buf, '\n')) {
-            buf[strlen(buf) -1] = '\0';
-        } else {
-            while(getchar() != '\n') {};
-        }
-
-        if (!device_found)
-            continue;
-
-        if (buf[1] != ':')
-            continue;
-
-        switch(buf[0]) {
-            case 's':
-                send_open(transport, "shell: ");
-                while(1) {
-                    usleep(150000);
-                    if (wait_ok_or_close(NULL)) {
-                        break;
-                    }
-                }
-                while(1) {
-                    usleep(50000);
-                    if(wait_ok_or_close(stdout)) {
-                        break;
-                    }
-                }
-                shell();
-                break;
-            case 'q':
-                return;
-                break;
-            default:
-                break;
-        }
-    }
-}
-
 static void *device_watch_thread(void *_t)
 {
     int current_state;
@@ -222,18 +131,41 @@ void message(const char* text)
     fflush(stdout);
 }
 
-int main (int argc, char **argv)
+int init_and_wait_device(int wait_seconds, int first_time)
 {
-    adb_trace_init();
-    usb_vendors_init();
-    usb_init();
+    if(first_time) {
+        usb_init();
+    }
 
     device_found = 0;
     create_device_watch_thread();
 
-    parse_command();
+    if (wait_seconds <= 0) {
+        wait_seconds = -1;
+    }
+
+    while((wait_seconds == -1 ) || (wait_seconds--)) {
+        adb_sleep_ms(1000);
+        if (device_found) {
+            return device_found;
+        }
+    }
+
+    return device_found;
+}
+
+int main (int argc, char **argv)
+{
+    /* init trace setting */
+    adb_trace_init();
+
+    /* init usb */
+    usb_vendors_init();
+
+    adb_commandline(argc - 1 , argv + 1 );
 
     usb_cleanup();
+
     return 0;
 }
 
