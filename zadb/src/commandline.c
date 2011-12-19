@@ -92,7 +92,7 @@ static void read_and_dump()
         usleep(50000);
         p = shift_received_packet();
         if (!p) {
-            break;
+            continue;
         }
         switch(p->msg.command){
             case A_OKAY:
@@ -132,14 +132,13 @@ static void read_and_dump()
 
 static void *stdin_read_thread(void *x)
 {
-    int fd, fdi;
+    int fdi;
     unsigned char buf[1024];
     int r, n;
     int state = 0;
 
-    int *fds = (int*) x;
-    fd = fds[0];
-    fdi = fds[1];
+    int* fds = (int*)x;
+    fdi = fds[0];
     free(fds);
 
     for(;;) {
@@ -174,15 +173,16 @@ static void *stdin_read_thread(void *x)
             }
         }
 /*
-fprintf(stderr, "read:%d ", r, buf);
+fprintf(stderr, "read:%d %s\n", r, buf);
 int i;
 for(i=0;i<r;i++){
   fprintf(stderr, "%x %c %d ", buf[i], buf[i], isprint(buf[i]));
 }
-fprintf(stderr, "\n");
     add_keylist(r, buf);
     dump_keylist();
 */
+        buf[r] = '\0';
+        send_write(transport, buf);
 /*
         r = adb_write(fd, buf, r);
         if(r <= 0) {
@@ -196,27 +196,20 @@ fprintf(stderr, "\n");
 int interactive_shell(void)
 {
     adb_thread_t thr;
-    int fdi, fd;
+    int fdi;
     int *fds;
 
-    send_open(transport, "shell:");
-/*
-    if(fd < 0) {
-        fprintf(stderr,"error: %s\n", adb_error());
-        return 1;
-    }
-*/
+    send_open(transport, "shell: ");
     fdi = 0; //dup(0);
 
     fds = malloc(sizeof(int) * 2);
-    fds[0] = fd;
-    fds[1] = fdi;
+    fds[0] = fdi;
 
 #ifdef HAVE_TERMIO_H
     stdin_raw_init(fdi);
 #endif
     adb_thread_create(&thr, stdin_read_thread, fds);
-    read_and_dump(fd);
+    read_and_dump();
 #ifdef HAVE_TERMIO_H
     stdin_raw_restore(fdi);
 #endif
