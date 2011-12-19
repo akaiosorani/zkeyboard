@@ -1,7 +1,25 @@
+/*
+ * Copyright (C) 2011 Akaiosorani
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include <stdio.h>
 #include <ctype.h>
 
 #include "sysdeps.h"
+
+#define TRACE_TAG TRACE_KEY
 #include "zadb.h"
 
 ADB_MUTEX_DEFINE(keyevent_lock);
@@ -150,11 +168,10 @@ void add_keylist(int length, char* buf)
 static void set_keyevent(keydata* k)
 {
     char buf[40];
-    sprintf(buf, "input keyevent %d \0", k->value);
+    sprintf(buf, "input keyevent %d %c", k->value, '\0');
 
     /* send packet */
-    send_write(transport, buf);
-    fprintf(stderr, "%s\n", buf);
+    D("%s\n", buf);
 }
 
 static void set_text(keydata* k)
@@ -177,8 +194,7 @@ static void set_text(keydata* k)
     *(p+2) = '\0'; 
 
     /* send packet */
-    send_write(transport, buf);
-    fprintf(stderr, "%s\n", buf);
+    D("%s\n", buf);
 }
 
 void send_command()
