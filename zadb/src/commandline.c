@@ -314,18 +314,48 @@ static int logcat(int argc, char **argv)
     return 0;
 }
 
+static int send_keyboard_queue(char* buf, int length)
+{
+    add_keylist(length, buf);
+//    dump_keylist();
+}
+
 static int keyboard(int argc, char **argv)
 {
-    init_and_wait_device(10, 1);
-/*
-    add_keylist(r, buf);
-    dump_keylist();
-*/
+    if(!init_and_wait_device(10, 1)) {
+        return 1;
+    }
+
+    adb_thread_t thr;
+    int fdi;
+    int *fds;
+
+    send_open(transport, "shell: ");
+    fdi = 0; //dup(0);
+
+    fds = malloc(sizeof(void) * 2);
+    fds[0] = &(send_keyboard_queue);
+    fds[1] = fdi;
+
+#ifdef HAVE_TERMIO_H
+    stdin_raw_init(fdi);
+#endif
+    adb_thread_create(&thr, stdin_read_thread, fds);
+    for(;;) {
+        adb_sleep_ms(200);
+        send_command();
+    }
+#ifdef HAVE_TERMIO_H
+    stdin_raw_restore(fdi);
+#endif
+    return 0;
+
 }
 int adb_commandline(int argc, char **argv)
 {
     char buf[4096];
     int quote;
+    int ret;
 
     if(argc == 0) {
         help();
@@ -388,7 +418,7 @@ int adb_commandline(int argc, char **argv)
 
         for(;;) {
             send_open(transport, buf);
-            read_and_dump(fd);
+            read_and_dump();
             send_close();
             r = 0;
 
@@ -402,13 +432,15 @@ int adb_commandline(int argc, char **argv)
     }
 
     if(!strcmp(argv[0],"keyboard")) {
+        ret = keyboard(argc, argv);
         usb_cleanup();
-        return keyboard(argc, argv);
+        return ret;
     }
 
     if(!strcmp(argv[0],"logcat") || !strcmp(argv[0],"lolcat")) {
+        ret = logcat(argc, argv);
         usb_cleanup();
-        return logcat(argc, argv);
+        return ret;
     }
 
     usage();

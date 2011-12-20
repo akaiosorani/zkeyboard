@@ -159,7 +159,7 @@ void add_keylist(int length, char* buf)
                 k = check_4bytes_char(buf);
                 break;
             default:
-                return;
+                break;
         }
     }
     adb_mutex_unlock(&keyevent_lock);
@@ -168,9 +168,10 @@ void add_keylist(int length, char* buf)
 static void set_keyevent(keydata* k)
 {
     char buf[40];
-    sprintf(buf, "input keyevent %d %c", k->value, '\0');
+    sprintf(buf, "input keyevent %d\r\n %c", k->value, '\0');
 
     /* send packet */
+    send_write(transport, buf);
     D("%s\n", buf);
 }
 
@@ -190,10 +191,13 @@ static void set_text(keydata* k)
         *(p++) = k->text[i];
     }
     *p = '"';
-    *(p+1) = ' '; 
-    *(p+2) = '\0'; 
+    *(p+1) = '\r'; 
+    *(p+2) = '\n'; 
+    *(p+3) = ' '; 
+    *(p+4) = '\0'; 
 
     /* send packet */
+    send_write(transport, buf);
     D("%s\n", buf);
 }
 
@@ -201,6 +205,11 @@ void send_command()
 {
     adb_mutex_lock(&keyevent_lock);
     keydata* k = keylist;
+    if(!k) {
+        adb_mutex_unlock(&keyevent_lock);
+        return;
+    }
+
     keylist = keylist->next;
     if(!keylist)
     {
@@ -224,7 +233,10 @@ void dump_keylist()
 {
     adb_mutex_lock(&keyevent_lock);
     keydata* k = keylist;
-    if(!k) return;
+    if(!k) {
+        adb_mutex_unlock(&keyevent_lock);
+        return;
+    }
 
     while(k) {
         if (k->type == KEY_EVENT)
