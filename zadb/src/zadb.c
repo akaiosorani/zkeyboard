@@ -28,6 +28,8 @@
 
 #define  TRACE_TAG   TRACE_ADB
 
+#define MESSAGE_DEVICE_INITIALIZING "finding and initializing device...\n"
+#define MESSAGE_DEVICE_NOT_FOUND "device not found\n"
 #define MESSAGE_DEVICE_CONNECTED "device connected\n"
 #define MESSAGE_DEVICE_DISCONNECTED "device disconnected\n"
 
@@ -133,6 +135,7 @@ void message(const char* text)
 
 int init_and_wait_device(int wait_seconds, int first_time)
 {
+    message(MESSAGE_DEVICE_INITIALIZING);
     if(first_time) {
         usb_init();
     }
@@ -151,6 +154,7 @@ int init_and_wait_device(int wait_seconds, int first_time)
         }
     }
 
+    message(MESSAGE_DEVICE_NOT_FOUND);
     return device_found;
 }
 
@@ -163,8 +167,6 @@ int main (int argc, char **argv)
     usb_vendors_init();
 
     adb_commandline(argc - 1 , argv + 1 );
-
-    usb_cleanup();
 
     return 0;
 }

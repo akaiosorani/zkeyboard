@@ -27,6 +27,8 @@
 #define  TRACE_TAG  TRACE_ADB
 #include "zadb.h"
 
+typedef void (*WRITE_FUNC) (char*, int);
+
 void version(FILE * out) {
     fprintf(out, "Android Debug Bridge for Zaurus version %d.%d.%d\n",
          ADB_VERSION_MAJOR, ADB_VERSION_MINOR, ADB_SERVER_VERSION);
@@ -41,6 +43,9 @@ void help()
         "device commands:\n"
         "  zadb shell                    - run remote shell interactively\n"
         "  zadb shell <command>          - run remote shell command\n"
+        "\n"
+        "  zadb keyboard                          - Do as a devices keyboard\n"
+        "  zadb logcat [ <filter-spec> ] - View device log\n"
         "\n"
         "  zadb help                     - show this help message\n"
         "  zadb version                  - show version num\n"
@@ -137,18 +142,21 @@ static void *stdin_read_thread(void *x)
     int r, n;
     int state = 0;
 
-    int* fds = (int*)x;
-    fdi = fds[0];
-    free(fds);
+    WRITE_FUNC fn;
+
+    fn = ((WRITE_FUNC*)x)[0];
+    fdi = ((int*)x)[1];
+    free(x);
 
     for(;;) {
         /* fdi is really the client's stdin, so use read, not adb_read here */
-        r = read(fdi, buf, 1024);
+        r = read(fdi, buf, 1000);
         if(r == 0) break;
         if(r < 0) {
             if(errno == EINTR) continue;
             break;
         }
+        buf[r] = '\0';
         for(n = 0; n < r; n++){
             switch(buf[n]) {
             case '\n':
@@ -178,19 +186,17 @@ int i;
 for(i=0;i<r;i++){
   fprintf(stderr, "%x %c %d ", buf[i], buf[i], isprint(buf[i]));
 }
-    add_keylist(r, buf);
-    dump_keylist();
 */
-        buf[r] = '\0';
-        send_write(transport, buf);
-/*
-        r = adb_write(fd, buf, r);
-        if(r <= 0) {
-            break;
-        }
-*/
+        fn(buf, r);
     }
     return 0;
+}
+
+static void write_to_device(char* buf, int length)
+{
+    if (length > 0) {
+        send_write(transport, buf);
+    }
 }
 
 int interactive_shell(void)
@@ -202,8 +208,9 @@ int interactive_shell(void)
     send_open(transport, "shell: ");
     fdi = 0; //dup(0);
 
-    fds = malloc(sizeof(int) * 2);
-    fds[0] = fdi;
+    fds = malloc(sizeof(void) * 2);
+    fds[0] = &(write_to_device);
+    fds[1] = fdi;
 
 #ifdef HAVE_TERMIO_H
     stdin_raw_init(fdi);
@@ -280,6 +287,8 @@ static int logcat(int argc, char **argv)
     char *log_tags;
     char *quoted_log_tags;
 
+    init_and_wait_device(10, 1);
+
     log_tags = getenv("ANDROID_LOG_TAGS");
     quoted_log_tags = dupAndQuote(log_tags == NULL ? "" : log_tags);
 
@@ -305,6 +314,14 @@ static int logcat(int argc, char **argv)
     return 0;
 }
 
+static int keyboard(int argc, char **argv)
+{
+    init_and_wait_device(10, 1);
+/*
+    add_keylist(r, buf);
+    dump_keylist();
+*/
+}
 int adb_commandline(int argc, char **argv)
 {
     char buf[4096];
@@ -333,6 +350,7 @@ int adb_commandline(int argc, char **argv)
 
         found = init_and_wait_device(10, 1);
         if (!found) {
+            usb_cleanup();
             return 1;
         }
 
@@ -349,6 +367,7 @@ int adb_commandline(int argc, char **argv)
                 printf("\x1b[0m");
                 fflush(stdout);
             }
+            usb_cleanup();
             return r;
         }
 
@@ -377,11 +396,18 @@ int adb_commandline(int argc, char **argv)
                 printf("\x1b[0m");
                 fflush(stdout);
             }
+            usb_cleanup();
             return r;
         }
     }
 
+    if(!strcmp(argv[0],"keyboard")) {
+        usb_cleanup();
+        return keyboard(argc, argv);
+    }
+
     if(!strcmp(argv[0],"logcat") || !strcmp(argv[0],"lolcat")) {
+        usb_cleanup();
         return logcat(argc, argv);
     }
 
