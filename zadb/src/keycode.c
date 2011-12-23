@@ -82,6 +82,9 @@ static keydata* check_1byte_char(char *buf)
         case 0x1b: /* ESC KEY*/
             value = 111;
             break;
+        case 0x20: /* SPACE KEY*/
+            value = 62;
+            break;
         case 0x7f: /* BS KEY*/
             value = 67;
             break;
@@ -134,7 +137,7 @@ void add_keylist(int length, char* buf)
     keydata *k = NULL;
     /* printable char */
     adb_mutex_lock(&keyevent_lock);
-    if (length == 1 && isprint(buf[0])) {
+    if (length == 1 && isprint(buf[0]) && (buf[0] != ' '  && buf[0] != '\t')) {
         if (last && last->type == KEY_TEXT && last->count < sizeof(last->text) && last->text[last->count-1] != '%') 
         {
             k = last;
