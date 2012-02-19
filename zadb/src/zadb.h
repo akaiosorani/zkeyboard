@@ -108,6 +108,15 @@ int check_data(apacket *p);
 void store_received_packet(apacket* packet);
 apacket* shift_received_packet();
 
+void send_connect(atransport *t);
+void send_open(atransport *t, const char* msg);
+void send_ready(atransport *t);
+void send_write(atransport *t, const char* msg);
+void send_close();
+
+int init_and_wait_device(int wait_seconds, int first_time);
+int adb_commandline(int argc, char **argv);
+
 #define  ADB_TRACE    1
 
 /* IMPORTANT: if you change the following list, don't

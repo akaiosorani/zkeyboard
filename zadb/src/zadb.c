@@ -94,6 +94,12 @@ void  adb_trace_init(void)
     }
 }
 
+void message(const char* text)
+{
+    fprintf(stdout, "%s", text);
+    fflush(stdout);
+}
+
 static void *device_watch_thread(void *_t)
 {
     int current_state;
@@ -116,7 +122,7 @@ static void *device_watch_thread(void *_t)
 
         D("device %d %d %x \n", device_found, current_state, transport);
     }
-
+    return NULL;
 }
 
 void create_device_watch_thread()
@@ -125,12 +131,6 @@ void create_device_watch_thread()
     if(adb_thread_create(&device_watch_thread_ptr, device_watch_thread, NULL)){
         fatal_errno("cannot create device watch thread");
     }
-}
-
-void message(const char* text)
-{
-    fprintf(stdout, text);
-    fflush(stdout);
 }
 
 int init_and_wait_device(int wait_seconds, int first_time)

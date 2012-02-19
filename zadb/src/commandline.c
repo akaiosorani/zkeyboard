@@ -26,6 +26,7 @@
 
 #define  TRACE_TAG  TRACE_ADB
 #include "zadb.h"
+#include "keycode.h"
 
 typedef void (*WRITE_FUNC) (char*, int);
 
@@ -89,7 +90,6 @@ static void stdin_raw_restore(int fd)
 static void read_and_dump()
 {
     char buf[4096];
-    int len;
 
     FILE * file = stdout;
     apacket *p;
@@ -108,9 +108,9 @@ static void read_and_dump()
                 return;
             case A_WRTE:
                 if (file) {
-                    strncpy(buf, p->data, p->msg.data_length);
+                    strncpy(buf, (char*)p->data, p->msg.data_length);
                     buf[p->msg.data_length] = 0;
-                    fprintf(file, buf);
+                    fprintf(file, "%s", buf);
                     fflush(file);
                 }
                 break;
@@ -173,7 +173,7 @@ for(i=0;i<r;i++){
   fprintf(stderr, "%x %c %d ", buf[i], buf[i], isprint(buf[i]));
 }
 */
-        fn(buf, r);
+        fn((char*)buf, r);
     }
     return 0;
 }
@@ -300,10 +300,9 @@ static int logcat(int argc, char **argv)
     return 0;
 }
 
-static int send_keyboard_queue(char* buf, int length)
+static void send_keyboard_queue(char* buf, int length)
 {
     add_keylist(length, buf);
-//    dump_keylist();
 }
 
 static int keyboard(int argc, char **argv)
@@ -328,7 +327,7 @@ static int keyboard(int argc, char **argv)
 #endif
     adb_thread_create(&thr, stdin_read_thread, fds);
     for(;;) {
-        adb_sleep_ms(200);
+        adb_sleep_ms(450);
         send_command();
     }
 #ifdef HAVE_TERMIO_H
@@ -362,7 +361,6 @@ int adb_commandline(int argc, char **argv)
     if(!strcmp(argv[0], "shell") || !strcmp(argv[0], "hell")) {
         int found;
         int r;
-        int fd;
 
         found = init_and_wait_device(10, 1);
         if (!found) {

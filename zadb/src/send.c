@@ -95,7 +95,7 @@ void print_packet(const char *label, apacket *p)
         }
         x++;
     }
-    fprintf(stderr, tag);
+    fprintf(stderr, "%s", tag);
 }
 #endif // ADB_TRACE_PACKETS
 
@@ -115,11 +115,21 @@ void put_apacket(apacket *p)
     free(p);
 }
 
+static void clear_received_packet()
+{
+    adb_mutex_lock(&packet_lock);
+    while(received != NULL) {
+        apacket* packet = received;
+        received = received->next;
+        put_apacket(packet);
+    }
+    received = last = NULL;
+    adb_mutex_unlock(&packet_lock);
+}
+
 // adb.c
 void handle_packet(apacket *p, atransport *t)
 {
-    char buf[0x1000 + 8];
-
     D("handle_packet() %c%c%c%c\n", ((char*) (&(p->msg.command)))[0],
             ((char*) (&(p->msg.command)))[1],
             ((char*) (&(p->msg.command)))[2],
@@ -193,20 +203,12 @@ void handle_packet(apacket *p, atransport *t)
         /*if(t->connection_state != CS_OFFLINE) */{
             if(p->msg.arg0 == remote_id) {
                 if(p->msg.data_length > 0) {
-/*
-                    strncpy(buf, p->data, p->msg.data_length);
-                    buf[p->msg.data_length] = 0;
-                    fprintf(stdout, buf);
-                    fflush(stdout);
-*/
                     store_received_packet(p);
                     p = NULL;
                 }
                 send_ready(t);
             }
         }
-/*
-*/
         break;
 
     default:
@@ -240,9 +242,8 @@ void send_open(atransport *t, const char* msg)
     p->msg.command = A_OPEN;
     p->msg.arg0 = ++seed;
     p->msg.arg1 = 0;
-    snprintf((char*)p->data, sizeof p->data, msg);
-//    snprintf((char*)p->data, sizeof p->data, "shell:");
-    p->msg.data_length = strlen(p->data);
+    snprintf((char*)p->data, sizeof p->data, "%s", msg);
+    p->msg.data_length = strlen((char*)p->data);
 
     send_packet(p, t);
     id = -1;
@@ -275,8 +276,8 @@ void send_write(atransport *t, const char* msg)
     p->msg.command = A_WRTE;
     p->msg.arg0 = 0;
     p->msg.arg1 = remote_id;
-    snprintf((char*)p->data, sizeof p->data, msg);
-    p->msg.data_length = strlen(p->data);
+    snprintf((char*)p->data, sizeof p->data, "%s", msg);
+    p->msg.data_length = strlen((char*)p->data);
 
     send_packet(p, t);
 }
@@ -310,18 +311,6 @@ apacket* shift_received_packet()
     }
     adb_mutex_unlock(&packet_lock);
     return p;
-}
-
-void clear_received_packet()
-{
-    adb_mutex_lock(&packet_lock);
-    while(received != NULL) {
-        apacket* packet = received;
-        received = received->next;
-        put_apacket(packet);
-    }
-    received = last = NULL;
-    adb_mutex_unlock(&packet_lock);
 }
 
 
