@@ -118,20 +118,6 @@ static void read_and_dump()
                 break;
         }
 
-/*
-        len = adb_read(fd, buf, 4096);
-        if(len == 0) {
-            break;
-        }
-
-        if(len < 0) {
-            if(errno == EINTR) continue;
-            break;
-        }
-        fwrite(buf, 1, len, stdout);
-        fflush(stdout);
-*/
-        
     }
 }
 
