@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (C) 2011 Akaiosorani
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -105,6 +106,7 @@ static void read_and_dump()
                 break;
             case A_CLSE:
                 // CLOSEなら終了
+                fprintf(stderr, "closed\n");
                 return;
             case A_WRTE:
                 if (file) {
@@ -162,6 +164,15 @@ static void *stdin_read_thread(void *x)
 #endif
                     exit(0);
                 }
+            case 0x04:
+                // Ctrl+D
+                // TODO not send from this thread
+                send_close(transport);
+                fprintf(stderr,"\n* disconnect *\n");
+#ifdef HAVE_TERMIO_H
+                stdin_raw_restore(fdi);
+#endif
+                return 0;
             default:
                 state = 0;
             }
@@ -251,18 +262,9 @@ static int send_shellcommand(char* buf)
 {
     int fd, ret;
 
-    for(;;) {
-        send_open(transport, buf);
-/*
-        if(fd >= 0)
-            break;
-        fprintf(stderr,"- waiting for device -\n");
-        adb_sleep_ms(1000);
-*/
-    }
-
+    send_open(transport, buf);
     read_and_dump();
-    send_close();
+    send_close(transport);
     return ret;
 }
 
@@ -273,7 +275,9 @@ static int logcat(int argc, char **argv)
     char *log_tags;
     char *quoted_log_tags;
 
-    init_and_wait_device(10, 1);
+    if(!init_and_wait_device(10, 1)) {
+        return 1;
+    }
 
     log_tags = getenv("ANDROID_LOG_TAGS");
     quoted_log_tags = dupAndQuote(log_tags == NULL ? "" : log_tags);
@@ -403,7 +407,7 @@ int adb_commandline(int argc, char **argv)
         for(;;) {
             send_open(transport, buf);
             read_and_dump();
-            send_close();
+            send_close(transport);
             r = 0;
 
             if (h) {

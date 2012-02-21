@@ -1,4 +1,19 @@
-
+/*
+ * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (C) 2011 Akaiosorani
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 #ifndef __ADB_H
 #define __ADB_H
@@ -105,14 +120,13 @@ void put_apacket(apacket *p);
 int check_header(apacket *p);
 int check_data(apacket *p);
 
-void store_received_packet(apacket* packet);
 apacket* shift_received_packet();
 
 void send_connect(atransport *t);
 void send_open(atransport *t, const char* msg);
 void send_ready(atransport *t);
 void send_write(atransport *t, const char* msg);
-void send_close();
+void send_close(atransport *t);
 
 int init_and_wait_device(int wait_seconds, int first_time);
 int adb_commandline(int argc, char **argv);

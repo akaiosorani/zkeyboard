@@ -127,6 +127,20 @@ static void clear_received_packet()
     adb_mutex_unlock(&packet_lock);
 }
 
+static void  store_received_packet(apacket *p)
+{
+    adb_mutex_lock(&packet_lock);
+    if (received == NULL) {
+        received = p;
+        last = p;
+    } else {
+        last->next = p;
+        last = p;
+    }
+    last->next = NULL;
+    adb_mutex_unlock(&packet_lock);
+}
+
 // adb.c
 void handle_packet(apacket *p, atransport *t)
 {
@@ -188,8 +202,7 @@ void handle_packet(apacket *p, atransport *t)
 
     case A_CLSE: /* CLOSE(local-id, remote-id, "") */
         // TODO handle closing shell
-        if (id == p->msg.arg0 && remote_id == p->msg.arg1) {
-            adb_mutex_lock(&packet_lock);
+        if ((p->msg.arg0 == remote_id || p->msg.arg0 == 0) && p->msg.arg1 == id) {
             store_received_packet(p);
             p = NULL;
         }
@@ -261,9 +274,15 @@ void send_ready(atransport *t)
     send_packet(p, t);
 }
 
-void send_close()
+void send_close(atransport *t)
 {
+    apacket *p = get_apacket();
+    p->msg.command = A_CLSE;
+    p->msg.arg0 = id;
+    p->msg.arg1 = remote_id;
+    p->msg.data_length = 0;
 
+    send_packet(p, t);
 }
 
 void send_write(atransport *t, const char* msg)
@@ -280,20 +299,6 @@ void send_write(atransport *t, const char* msg)
     p->msg.data_length = strlen((char*)p->data);
 
     send_packet(p, t);
-}
-
-void  store_received_packet(apacket *p)
-{
-    adb_mutex_lock(&packet_lock);
-    if (received == NULL) {
-        received = p;
-        last = p;
-    } else {
-        last->next = p;
-        last = p;
-    }
-    last->next = NULL;
-    adb_mutex_unlock(&packet_lock);
 }
 
 apacket* shift_received_packet()
