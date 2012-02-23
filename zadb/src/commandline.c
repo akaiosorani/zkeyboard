@@ -164,6 +164,7 @@ static void *stdin_read_thread(void *x)
 #endif
                     exit(0);
                 }
+                break;
             case 0x04:
                 // Ctrl+D
                 // TODO not send from this thread
